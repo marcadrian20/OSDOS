@@ -29,11 +29,12 @@ $(BOOTLOADER_NAME).bin: $(BOOTLOADER_SRC)
 $(OUTPUT_IMG): $(BOOTLOADER_NAME).bin $(KERNEL_NAME).bin
 	$(RM) -f $(OUTPUT_IMG)  # Clean up any existing disk image
 	dd if=/dev/zero of=$(OUTPUT_IMG) bs=512 count=2880
-# mkfs.fat -F 12 $(OUTPUT_IMG)
-	mformat -i disk.img -v "OSDOS" ::/
+	# mkfs.fat -F 12 -n "OSDOS" $(OUTPUT_IMG)
+# mformat -i disk.img -v "OSDOS" ::/
 	dd if=$(BOOTLOADER_NAME).bin of=$(OUTPUT_IMG) bs=512 seek=0 conv=notrunc
 # dd if=$(KERNEL_NAME).bin of=$(OUTPUT_IMG) bs=512 seek=18 conv=notrunc
 # mcopy -i $(OUTPUT_IMG) kernel.asm ::/
+	mcopy -i $(OUTPUT_IMG) hello.txt ::/
 	mcopy -i $(OUTPUT_IMG) kernel.bin ::/
 # mcopy -i $(OUTPUT_IMG) bootloader.asm ::/
 
@@ -49,7 +50,18 @@ debug:
 #      -ex "symbol-file $(KERNEL_NAME).bin" \
 #      -ex "layout asm" \
 #      -ex "layout regs"
+gdb:
+	qemu-system-x86_64 -fda $(OUTPUT_IMG) -s -S &
+	@gdb -ex "target remote localhost:1234" \
+		 -ex "symbol-file $(KERNEL_NAME).bin" \
+         -ex "layout asm" \
+         -ex "layout regs" \
+		 -ex "b *0x7c00" \
+	     -ex "b *0x7e00" \
+		 -ex "c"
+
 run:
-	qemu-system-x86_64 -drive format=raw,file=$(OUTPUT_IMG)
+	qemu-system-x86_64 -fda $(OUTPUT_IMG)
+# qemu-system-x86_64 -drive format=raw,file=$(OUTPUT_IMG)
 
 .PHONY: all clean debug

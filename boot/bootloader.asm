@@ -32,132 +32,27 @@ start:
     xor ax, ax ;val 0x0000
     mov ds, ax 
     mov es, ax
-    ;set segments to 0x0000 since we assume loading at segment:offset 0x0000:0x7C00. Same as 0x7C00:0x0000, same phy. linear mem addr
+
     mov si, TestString
     call printService
+    ; call load_kernel
+    MOV     AX, 0x7000
+    MOV     SS, AX
+    MOV     BP, 0x8000
+    MOV     SP, BP
 
-;*************************
-; Load ROOT DIR from disk*
-;*************************
-load_root:
-    pusha
-    mov BYTE [SectorsToRead], 0x0E  ;citim 14 sectoare
-    mov BYTE [CurrentSector],0x14   ;sectorul curent este 19
-    mov ax, 0x1000                  ;;Hacky way to read entire ROOT DIR ENTRY 
-    mov es, ax
-    xor bx, bx
-    call read_sector
-    popa
-;***********************
-; Load kernel from disk*
-;***********************
-load_kernel:
-    mov ah, 0; reset disk sys
-    int 0x13 ;; 
-    mov ax, 0x1000              ; Load kernel at memory address 0x1000
-    mov es, ax                  ; Set extra segment to 0x1000
-    mov ds, ax
-    mov ss, ax
-    xor bx, bx                  ; Offset = 0x0000
-    ; pusha
-    ; call find_kernel
-    ; popa
-    mov BYTE [CurrentSector],   0x22 ;sector 34, inceput data area
-    mov BYTE [SectorsToRead], 1
-    call read_sector
-    jmp 0x1000:0x0000        ; Jump to kernel at 0x1000:0x0000
+    ; mov ax, 0x1000              ; Load kernel at memory address 0x1000
+    ; mov es, ax                  ; Set extra segment to 0x1000
+    ; mov ds, ax
+
+    call load_root
+    ; mov si, ImageOffset
+    ; call printService
+    jmp 0x0000:0x1000
     jmp $
-find_kernel:
-    mov cx, 14  ;14 entries, reach 0 -> doesnt exist
-    mov di, 0x0000
-    loop:
-        push cx
-        mov cx, 11          ;comparam file name (format 8.3 specific FAT12/16)
-        mov si, KernelName
-        push di
-        repe cmpsb
-        pop di
-        je  load_fat
-        pop cx
-        add di, 32         ;next dir entry (32 bytes)
-        loop loop
-        jmp load_error
+
     
-    
-load_fat:
-    mov dx, WORD [di+0x001A]
-    mov WORD [cluster], dx
-    mov bx, 0x200
-    mov cx, WORD [bpb_reserved_sectors]
-    inc cx
-    call read_sector
-    ; mov BYTE []
-load_image:
-    mov ax, word [cluster]
-    call cluster2LBA
-
-cluster2LBA:
-    sub ax,0x02
-    mul word [bpb_sectors_per_cluster]
-    ret
-LBA2CHS:
-    ;***************************************************************
-    ;absolute sector 	= 	(LBA % sectors per track) + 1
-    ;absolute head   	= 	(LBA / sectors per track) % number of heads
-    ;absolute track 	= 	 LBA / (sectors per track * number of heads)
-    ;******************************************************************
-    xor dx, dx
-    div WORD [bpb_sectors_per_track]
-    inc dl
-    mov byte [CurrentSector],dl
-    ; xor dx, dx
-    ; div word [bpb_heads]
-    ; mov byte[head], dl
-    ; mov byte[track], al
-    ret
-load_cluster:
-    mov ax, [cluster]
-    call cluster2LBA
-    xor cx, cx
-    mov cl,[bpb_sectors_per_cluster]
-    call read_sector
-    ret
-
-read_sector:    
-    pusha
-    mov ah, 0x02                ; BIOS Read Sector function
-    mov al, BYTE [SectorsToRead]; Number of sectors to read
-    mov ch, 0                   ; Cylinder 0
-    mov cl, BYTE [CurrentSector];2                   ; Sector 2 (kernel start)
-    mov dh, 0                   ; Head 0
-    ; mov dl, 0x80                ; Drive 0 (first disk)
-
-    int 0x13                    ; Call BIOS interrupt
-    jc load_error               ; Jump if the load fails
-    popa
-    ret
-    ; popa
-    ; clc
-    
-
-load_error:
-    mov ah, 0x0E                ; BIOS teletype output
-    mov bx, errString
-    call printService           ; Display 'E' for error
-    ; Display BIOS error code
-    jmp $
-           ; Infinite loop to halt execution
-
-printService:
-    lodsb ;load from ds:si in AL
-    or al, al ;aflam daca am atins caracter null
-    jz end
-    mov ah, 0x0e ;teletype 
-    int 0x10
-    jmp printService
-end:
-    ret
-
+%INCLUDE "../boot/functions.asm"
 ;************
 ;Variables  *
 ;************
@@ -166,9 +61,14 @@ TestString:
 errString:
     db "404 kernel", 13, 10, 0
 CurrentSector db 0
+CurrentHead db 0
+CurrentTrack    db 0
 SectorsToRead db 0
-cluster db 0
-KernelName: db "KERNEL  BIN"
+DataSectorBegin dw 0
+cluster dw 0
+KernelName: db "KERNEL  BIN";DB "HELLO   TXT",0 ;
+RootOffset equ 0x0500
+ImageOffset equ 0x1000
 ;***********************************
 ;Kernel padding and boot signature *
 ;***********************************

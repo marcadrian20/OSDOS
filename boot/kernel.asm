@@ -1,4 +1,4 @@
-[org 0x0000]
+[org 0x1000]
 [BITS 16]
 
 ;*************************************
@@ -145,13 +145,11 @@ str_cmp:
     loop:
         lodsb           ;load into AL from SI
         scasb           ;scan the byte from AL and compare with DI
-        jne mismatch    ;on match or mismatch return ####TODO find better way to return.  |POP bx, jne bx doesnt work
+        jne done    ;on match or mismatch return ####TODO find better way to return.  |POP bx, jne bx doesnt work
         test al, al     ;check for NULL
-        je match
+        je done
         jmp loop        
-    match:
-        ret
-    mismatch:
+    done:
         ret
 ;******************************************************
 
